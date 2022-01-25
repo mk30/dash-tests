@@ -90,7 +90,8 @@ var draw = regl({
     varying vec2 vPosition, vDist;
 
     void main() {
-      gl_FragColor = vec4(vec3(mod((vPosition.x*vDist.x+vDist.y)/30.0, 1.0)),1);
+      gl_FragColor =
+      vec4(vec3(smoothstep(mod((vPosition.x*vDist.x+vDist.y)/30.0, 1.0),0.5,1.0)),1);
       //gl_FragColor = vec4(vPosition.x*vDist.x, 0, 0, 1.0);
     }`,
   vert: `
