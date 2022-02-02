@@ -1,17 +1,15 @@
 var regl = require('regl')( { extensions: ['angle_instanced_arrays'] })
 var vec2 = require('gl-vec2')
-var lineData = [[-0.2,-0.2], [0.4,0.4]]
+var lineData = [[-0.2,-0.2], [0.6,0.6]]
 
-var getNorm = function (a, b) {
-  var n = []
+function getNorm (n, a, b) {
   var dx = b[0] - a[0]
   var dy = b[1] - a[1]
   vec2.normalize(n, [dx,dy])
   return n
 }
 
-var getD = function (a, b) {
-  var d = []
+function getD (d, a, b) {
   var subtracted = []
   vec2.subtract(subtracted, a, b)
   vec2.normalize(d, subtracted)
@@ -20,19 +18,25 @@ var getD = function (a, b) {
 
 var rectPos = []
 var getRect = function (a, b, width) {
-  var norm = getNorm(a, b)
-  var d = getD(a, b)
+  var norm = []
+  var d = []
+  getNorm(norm, a, b)
+  getD(d, a, b)
   var aa = []
   vec2.add(aa, a, [-norm[0], norm[1]])
+  vec2.add(aa, aa, d)
   vec2.scale(aa, aa, width)
   var ab = []
   vec2.subtract(ab, a, [-norm[0], norm[1]])
+  vec2.add(ab, ab, d)
   vec2.scale(ab, ab, width)
   var ba = []
   vec2.add(ba, b, [-norm[0], norm[1]])
+  vec2.subtract(ba, ba, d)
   vec2.scale(ba, ba, width)
   var bb = []
   vec2.subtract(bb, b, [-norm[0], norm[1]])
+  vec2.subtract(bb, bb, d)
   vec2.scale(bb, bb, width)
   rectPos.push(aa[0], aa[1], ab[0], ab[1], ba[0], ba[1], bb[0], bb[1])
   return rectPos
