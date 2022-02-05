@@ -19,33 +19,38 @@ function getD (d, a, b) {
   return d
 }
 
-function addRect (rectCells, rectPos, a, b, width) {
+function addRect (rect, a, b, width) {
   getNorm(nv, a, b)
   getD(dv, a, b)
   vec2.add(v0, dv, nv)
-  vec2.scale(v0, v0, width)
+  vec2.scale(v0, v0, width*0.5)
   var a0x = a[0] + v0[0]
   var a0y = a[1] + v0[1]
   vec2.subtract(v0, dv, nv)
-  vec2.scale(v0, v0, width)
+  vec2.scale(v0, v0, width*0.5)
   var a1x = a[0] + v0[0]
   var a1y = a[1] + v0[1]
   vec2.subtract(v0, dv, nv)
-  vec2.scale(v0, v0, width)
+  vec2.scale(v0, v0, width*0.5)
   var b0x = b[0] - v0[0]
   var b0y = b[1] - v0[1]
   vec2.add(v0, dv, nv)
-  vec2.scale(v0, v0, width)
+  vec2.scale(v0, v0, width*0.5)
   var b1x = b[0] - v0[0]
   var b1y = b[1] - v0[1]
-  var n = rectPos.length/2
-  rectCells.push(n+0, n+1, n+2, n+0, n+2, n+3)
-  rectPos.push(a0x, a0y, a1x, a1y, b1x, b1y, b0x, b0y)
+  var n = rect.positions.length/2
+  rect.cells.push(n+0, n+1, n+2, n+0, n+2, n+3)
+  rect.positions.push(a0x, a0y, a1x, a1y, b1x, b1y, b0x, b0y)
+  var lab = vec2.distance(a, b)
+  rect.lengths.push(lab, lab, lab, lab)
+  rect.uvs.push(-width, width, -width, -width, lab+width, -width, lab+width, width)
 }
 
 var line = {
   positions: [],
   cells: [],
+  uvs: [],
+  lengths: [],
   width: 0.1
 }
 
@@ -54,20 +59,31 @@ var b = [0, 0]
 for (var i=0; i<lineData.length/2-1; i++) {
   vec2.set(a, lineData[i*2], lineData[i*2+1])
   vec2.set(b, lineData[(i+1)*2], lineData[(i+1)*2+1])
-  addRect(line.cells, line.positions, a, b, line.width)
+  addRect(line, a, b, line.width)
 }
 
 
 var draw = regl({
   frag: `
     precision highp float;
+    varying float vlab;
+    varying vec2 vuv;
+    uniform float width;
     void main() {
-      gl_FragColor = vec4(1, 1, 0, 1);
+      float scap = step(vuv.x, 0.0);
+      float ecap = step(vlab, vuv.x);
+      float bcap = (1.0-scap)*(1.0-ecap);
+      gl_FragColor = vec4(scap, ecap, bcap, 1);
     }`,
   vert: `
     precision highp float;
-    attribute vec2 position;
+    attribute float lab;
+    attribute vec2 position, uv;
+    varying float vlab;
+    varying vec2 vuv;
     void main() {
+      vlab = lab;
+      vuv = uv;
       gl_Position = vec4(position, 0, 1);
     }`,
   uniforms: {
@@ -75,6 +91,8 @@ var draw = regl({
   },
   attributes: {
     position: line.positions,
+    uv: line.uvs,
+    lab: line.lengths,
   },
   elements: line.cells,
   primitive: "triangles",
