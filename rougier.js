@@ -1,6 +1,6 @@
 var regl = require('regl')( { extensions: ['angle_instanced_arrays'] })
 var vec2 = require('gl-vec2')
-var lineData = [[0,-0.85], [0,0.85]]
+var lineData = [-0.3,-0.1, -0.2,0.4, 0.3,-0.3, 0.35,0.4, 0.6,-0.2]
 var v0 = [0, 0]
 var v1 = [0, 0]
 var nv = [0, 0]
@@ -49,7 +49,14 @@ var line = {
   width: 0.1
 }
 
-addRect(line.cells, line.positions, lineData[0], lineData[1], line.width)
+var a = [0, 0]
+var b = [0, 0]
+for (var i=0; i<lineData.length/2-1; i++) {
+  vec2.set(a, lineData[i*2], lineData[i*2+1])
+  vec2.set(b, lineData[(i+1)*2], lineData[(i+1)*2+1])
+  addRect(line.cells, line.positions, a, b, line.width)
+}
+
 
 var draw = regl({
   frag: `
