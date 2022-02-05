@@ -1,54 +1,55 @@
 var regl = require('regl')( { extensions: ['angle_instanced_arrays'] })
 var vec2 = require('gl-vec2')
-var lineData = [[-0.2,-0.2], [0.6,0.6]]
+var lineData = [[0,-0.85], [0,0.85]]
+var v0 = [0, 0]
+var v1 = [0, 0]
+var nv = [0, 0]
+var dv = [0, 0]
 
 function getNorm (n, a, b) {
-  var dx = b[0] - a[0]
-  var dy = b[1] - a[1]
-  vec2.normalize(n, [dx,dy])
+  n[0] = a[1] - b[1]
+  n[1] = b[0] - a[0]
+  vec2.normalize(n, n)
   return n
 }
 
 function getD (d, a, b) {
-  var subtracted = []
-  vec2.subtract(subtracted, a, b)
-  vec2.normalize(d, subtracted)
+  vec2.subtract(d, a, b)
+  vec2.normalize(d, d)
   return d
 }
 
-var rectPos = []
-var getRect = function (a, b, width) {
-  var norm = []
-  var d = []
-  getNorm(norm, a, b)
-  getD(d, a, b)
-  var aa = []
-  vec2.add(aa, a, [-norm[0], norm[1]])
-  vec2.add(aa, aa, d)
-  vec2.scale(aa, aa, width)
-  var ab = []
-  vec2.subtract(ab, a, [-norm[0], norm[1]])
-  vec2.add(ab, ab, d)
-  vec2.scale(ab, ab, width)
-  var ba = []
-  vec2.add(ba, b, [-norm[0], norm[1]])
-  vec2.subtract(ba, ba, d)
-  vec2.scale(ba, ba, width)
-  var bb = []
-  vec2.subtract(bb, b, [-norm[0], norm[1]])
-  vec2.subtract(bb, bb, d)
-  vec2.scale(bb, bb, width)
-  rectPos.push(aa[0], aa[1], ab[0], ab[1], ba[0], ba[1], bb[0], bb[1])
-  return rectPos
+function addRect (rectCells, rectPos, a, b, width) {
+  getNorm(nv, a, b)
+  getD(dv, a, b)
+  vec2.add(v0, dv, nv)
+  vec2.scale(v0, v0, width)
+  var a0x = a[0] + v0[0]
+  var a0y = a[1] + v0[1]
+  vec2.subtract(v0, dv, nv)
+  vec2.scale(v0, v0, width)
+  var a1x = a[0] + v0[0]
+  var a1y = a[1] + v0[1]
+  vec2.subtract(v0, dv, nv)
+  vec2.scale(v0, v0, width)
+  var b0x = b[0] - v0[0]
+  var b0y = b[1] - v0[1]
+  vec2.add(v0, dv, nv)
+  vec2.scale(v0, v0, width)
+  var b1x = b[0] - v0[0]
+  var b1y = b[1] - v0[1]
+  var n = rectPos.length/2
+  rectCells.push(n+0, n+1, n+2, n+0, n+2, n+3)
+  rectPos.push(a0x, a0y, a1x, a1y, b1x, b1y, b0x, b0y)
 }
-
-console.log(getRect(lineData[0], lineData[1], 0.3))
 
 var line = {
-  positions: rectPos,
-  cells: [0,2,3,1,0,3],
+  positions: [],
+  cells: [],
   width: 0.1
 }
+
+addRect(line.cells, line.positions, lineData[0], lineData[1], line.width)
 
 var draw = regl({
   frag: `
