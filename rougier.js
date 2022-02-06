@@ -63,8 +63,9 @@ var line = {
   lengths: [],
   phases: [],
   prevPhases: [],
-  period: 7,
-  width: 0.005
+  period: 0.1,
+  width: 0.01,
+  duty: 0.3,
 }
 
 var a = [0, 0]
@@ -81,9 +82,9 @@ var draw = regl({
     precision highp float;
     varying float vlab, vphase, vPrevPhase;
     varying vec2 vuv;
-    uniform float width, period;
+    uniform float width, period, duty;
     void main() {
-      float freq = width * period;
+      float freq = period;
       float scap = step(vuv.x, 0.0);
       float ecap = step(vlab, vuv.x);
       float bcap = (1.0-scap)*(1.0-ecap);
@@ -91,18 +92,9 @@ var draw = regl({
       vec2 buv = vec2(vlab,0);
       if (ecap > 0.5 && distance(vuv,buv) > width) discard;
       float uu = mod((clamp(0.0, vlab, vuv.x) + vphase)/freq, 1.0);
-      /*
-      float uu = 0.0;
-      if (vuv.x < 0.0) {
-        uu = mod((vphase+width)/freq, 1.0);
-      } else {
-        uu = mod((clamp(0.0, vlab, vuv.x) + vphase)/freq, 1.0);
-      }
-      */
-      float x = step(0.5, uu);
+      float x = step(duty, uu);
       if (x > 0.5) discard;
       gl_FragColor = vec4(x, 0.0, 1.0, 1.0);
-      //gl_FragColor = vec4(scap, ecap, uu, 1);
     }`,
   vert: `
     precision highp float;
@@ -120,6 +112,7 @@ var draw = regl({
   uniforms: {
     width: line.width,
     period: line.period,
+    duty: line.duty,
   },
   attributes: {
     position: line.positions,
