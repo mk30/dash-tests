@@ -1,6 +1,6 @@
 var regl = require('regl')( { extensions: ['angle_instanced_arrays'] })
 var vec2 = require('gl-vec2')
-var lineData = [-0.3,-0.1, -0.2,0.4, 0.3,-0.3, 0.35,0.4, 0.6,-0.2]
+var lineData = [-0.3,-0.1, -0.2,0.4, 0.3,-0.9, 0.35,0.4, 0.6,-0.2]
 var v0 = [0, 0]
 var v1 = [0, 0]
 var nv = [0, 0]
@@ -44,6 +44,13 @@ function addRect (rect, a, b, width) {
   var lab = vec2.distance(a, b)
   rect.lengths.push(lab, lab, lab, lab)
   rect.uvs.push(-width, width, -width, -width, lab+width, -width, lab+width, width)
+  var ph = 0
+  if (rect.phases.length > 0) {
+    var l = rect.lengths[rect.lengths.length-1]
+    var p = rect.phases[rect.phases.length-1]
+    ph = l + p
+  }
+  rect.phases.push(ph, ph, ph, ph)
 }
 
 var line = {
@@ -51,6 +58,8 @@ var line = {
   cells: [],
   uvs: [],
   lengths: [],
+  phases: [],
+  period: 5,
   width: 0.1
 }
 
@@ -66,33 +75,43 @@ for (var i=0; i<lineData.length/2-1; i++) {
 var draw = regl({
   frag: `
     precision highp float;
-    varying float vlab;
+    varying float vlab, vphase;
     varying vec2 vuv;
-    uniform float width;
+    uniform float width, period;
     void main() {
+      float freq = width * period;
+      float uu = mod((vuv.x + vphase)/freq, 1.0);
       float scap = step(vuv.x, 0.0);
       float ecap = step(vlab, vuv.x);
       float bcap = (1.0-scap)*(1.0-ecap);
-      gl_FragColor = vec4(scap, ecap, bcap, 1);
+      if (scap > 0.5 && length(vuv) > width) discard;
+      vec2 buv = vec2(vlab,0);
+      if (ecap > 0.5 && distance(vuv,buv) > width) discard;
+      float x = step(0.5, uu);
+      gl_FragColor = vec4(x, 0.0, 1.0, 1.0);
+      //gl_FragColor = vec4(scap, ecap, uu, 1);
     }`,
   vert: `
     precision highp float;
-    attribute float lab;
+    attribute float lab, phase;
     attribute vec2 position, uv;
-    varying float vlab;
+    varying float vlab, vphase;
     varying vec2 vuv;
     void main() {
       vlab = lab;
       vuv = uv;
+      vphase = phase;
       gl_Position = vec4(position, 0, 1);
     }`,
   uniforms: {
     width: line.width,
+    period: line.period,
   },
   attributes: {
     position: line.positions,
     uv: line.uvs,
     lab: line.lengths,
+    phase: line.phases,
   },
   elements: line.cells,
   primitive: "triangles",
