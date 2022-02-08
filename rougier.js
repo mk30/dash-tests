@@ -1,6 +1,5 @@
 var regl = require('regl')( { extensions: ['angle_instanced_arrays'] })
 var vec2 = require('gl-vec2')
-var lineData = [-0.3,-0.1, -0.2,0.4, 0.3,-0.9, 0.35,0.5, 0.6,-0.2]
 var v0 = [0, 0]
 var v1 = [0, 0]
 var nv = [0, 0]
@@ -19,95 +18,65 @@ function getD (d, a, b) {
   return d
 }
 
-function addRect (rect, a, b, width) {
-  getNorm(nv, a, b)
-  getD(dv, a, b)
-  vec2.add(v0, dv, nv)
-  vec2.scale(v0, v0, width*0.5)
-  var a0x = a[0] + v0[0]
-  var a0y = a[1] + v0[1]
-  vec2.subtract(v0, dv, nv)
-  vec2.scale(v0, v0, width*0.5)
-  var a1x = a[0] + v0[0]
-  var a1y = a[1] + v0[1]
-  vec2.subtract(v0, dv, nv)
-  vec2.scale(v0, v0, width*0.5)
-  var b0x = b[0] - v0[0]
-  var b0y = b[1] - v0[1]
-  vec2.add(v0, dv, nv)
-  vec2.scale(v0, v0, width*0.5)
-  var b1x = b[0] - v0[0]
-  var b1y = b[1] - v0[1]
-  var n = rect.positions.length/2
-  rect.cells.push(n+0, n+1, n+2, n+0, n+2, n+3)
-  rect.positions.push(a0x, a0y, a1x, a1y, b1x, b1y, b0x, b0y)
-  var lab = vec2.distance(a, b)
-  rect.lengths.push(lab, lab, lab, lab)
-  rect.uvs.push(-width, width, -width, -width, lab+width, -width, lab+width, width)
-  var ph = width
-  if (rect.phases.length > 0) {
-    var l = rect.lengths[rect.lengths.length-1]
-    var p = rect.phases[rect.phases.length-1]
-    ph = l + p - width*3
-    rect.prevPhases.push(p, p, p, p)
-  } else {
-    rect.prevPhases.push(0, 0, 0, 0)
-  }
-  rect.phases.push(ph, ph, ph, ph)
-}
-
 var line = {
-  positions: [],
-  cells: [],
-  uvs: [],
-  lengths: [],
-  phases: [],
-  prevPhases: [],
+  points: [-0.3,-0.1, -0.2,0.4, 0.3,-0.9, 0.35,0.5, 0.6,-0.2, 0.4,-0.1, -0.3,-0.1],
+  cdist: [],
   period: 0.1,
   width: 0.01,
   duty: 0.3,
 }
 
-var a = [0, 0]
-var b = [0, 0]
-for (var i=0; i<lineData.length/2-1; i++) {
-  vec2.set(a, lineData[i*2], lineData[i*2+1])
-  vec2.set(b, lineData[(i+1)*2], lineData[(i+1)*2+1])
-  addRect(line, a, b, line.width)
+var cd = 0
+for (var i=0; i<line.points.length/2-1; i++) {
+  vec2.set(v0, line.points[2*i], line.points[2*i+1])
+  vec2.set(v1, line.points[2*(i+1)], line.points[2*(i+1)+1])
+  line.cdist.push(cd)
+  cd+=vec2.dist(v0, v1)
 }
-
 
 var draw = regl({
   frag: `
     precision highp float;
-    varying float vlab, vphase, vPrevPhase;
+    varying float vdist, vcdist;
     varying vec2 vuv;
     uniform float width, period, duty;
     void main() {
       float freq = period;
       float scap = step(vuv.x, 0.0);
-      float ecap = step(vlab, vuv.x);
+      float ecap = step(vdist, vuv.x);
       float bcap = (1.0-scap)*(1.0-ecap);
       if (scap > 0.5 && length(vuv) > width) discard;
-      vec2 buv = vec2(vlab,0);
+      vec2 buv = vec2(vdist,0);
       if (ecap > 0.5 && distance(vuv,buv) > width) discard;
-      float uu = mod((clamp(0.0, vlab, vuv.x) + vphase)/freq, 1.0);
+      float uu = mod((clamp(0.0, vdist, vuv.x) + vcdist)/freq, 1.0);
       float x = step(duty, uu);
       if (x > 0.5) discard;
       gl_FragColor = vec4(x, 0.0, 1.0, 1.0);
     }`,
   vert: `
     precision highp float;
-    attribute float lab, phase, prevPhase;
-    attribute vec2 position, uv;
-    varying float vlab, vphase, vPrevPhase;
+    uniform float width;
+    attribute float cdist;
+    attribute vec2 position, pointA, pointB;
+    varying float vdist, vcdist;
     varying vec2 vuv;
     void main() {
-      vlab = lab;
-      vuv = uv;
-      vphase = phase;
-      vPrevPhase = prevPhase;
-      gl_Position = vec4(position, 0, 1);
+      vec2 n = normalize(vec2(pointA.y-pointB.y, pointB.x-pointA.x));
+      vec2 d = normalize(pointA-pointB);
+      vdist = distance(pointA,pointB);
+      vuv = vec2(
+        mix(-width, vdist+width, position.x*0.5+0.5),
+        mix(-width, width, position.y*0.5+0.5)
+      );
+      vec2 na = mix(-n,n,position.y*0.5+0.5);
+      vec2 nb = mix(n,-n,position.y*0.5+0.5);
+      vec2 p = mix(
+        pointA+(d+na)*width,
+        pointB-(d+nb)*width,
+        position.x*0.5+0.5 
+      );
+      vcdist = cdist;
+      gl_Position = vec4(p, 0, 1);
     }`,
   uniforms: {
     width: line.width,
@@ -115,15 +84,27 @@ var draw = regl({
     duty: line.duty,
   },
   attributes: {
-    position: line.positions,
-    uv: line.uvs,
-    lab: line.lengths,
-    phase: line.phases,
-    prevPhase: line.prevPhases,
+    position: [-1,-1, -1,1, 1,1, 1,-1],
+    pointA: {
+      buffer: regl.buffer(line.points),
+      divisor: 1,
+      offset: 0
+    },
+    pointB: {
+      buffer: regl.buffer(line.points),
+      divisor: 1,
+      offset: 8
+    },
+    cdist: {
+      buffer: regl.buffer(line.cdist),
+      divisor: 1,
+      offset: 0
+    },
   },
-  elements: line.cells,
+  elements: [0,1,2, 2,3,0],
   primitive: "triangles",
   depth: { enable: false },
+  instances: line.points.length/2-1,
   blend: {
     enable: true,
     func: {
@@ -135,7 +116,12 @@ var draw = regl({
   }
 })
 
-regl.frame(function () {
+frame()
+
+window.addEventListener('resize', frame)
+
+function frame () {
+  regl.poll()
   regl.clear({ color: [0, 0, 0, 1] })
   draw()
-})
+}
