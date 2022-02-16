@@ -19,8 +19,9 @@ function getD (d, a, b) {
 }
 
 var line = {
-  points: [-0.3,-0.1, -0.2,0.4, 0.3,-0.9, 0.35,0.5, 0.6,-0.2, 0.4,-0.1, -0.3,-0.1],
+  points: [-0.3,-0.1, -0.2,0.4, 0.3,-0.9, 0.35,0.5, -0.2,0.6, 0.4,-0.1],
   cdist: [],
+  breaks: [1.0, 1.0, 0.0, 1.0, 1.0, 1.0],
   period: 0.1,
   width: 0.01,
   duty: 0.3,
@@ -34,10 +35,12 @@ for (var i=0; i<line.points.length/2-1; i++) {
   cd+=vec2.dist(v0, v1)
 }
 
+console.log(line)
+
 var draw = regl({
   frag: `
     precision highp float;
-    varying float vdist, vcdist;
+    varying float vdist, vcdist, vbreaks;
     varying vec2 vuv;
     uniform float width, period, duty;
     void main() {
@@ -50,15 +53,16 @@ var draw = regl({
       if (ecap > 0.5 && distance(vuv,buv) > width) discard;
       float uu = mod((clamp(0.0, vdist, vuv.x) + vcdist)/freq, 1.0);
       float x = step(duty, uu);
-      if (x > 0.5) discard;
+      //if (x > 0.5) discard;
+      if (vbreaks == 0.0) discard;
       gl_FragColor = vec4(x, 0.0, 1.0, 1.0);
     }`,
   vert: `
     precision highp float;
     uniform float width;
-    attribute float cdist;
+    attribute float cdist, breaks;
     attribute vec2 position, pointA, pointB;
-    varying float vdist, vcdist;
+    varying float vdist, vcdist, vbreaks;
     varying vec2 vuv;
     void main() {
       vec2 n = normalize(vec2(pointA.y-pointB.y, pointB.x-pointA.x));
@@ -76,6 +80,7 @@ var draw = regl({
         position.x*0.5+0.5 
       );
       vcdist = cdist;
+      vbreaks = breaks;
       gl_Position = vec4(p, 0, 1);
     }`,
   uniforms: {
@@ -97,6 +102,11 @@ var draw = regl({
     },
     cdist: {
       buffer: regl.buffer(line.cdist),
+      divisor: 1,
+      offset: 0
+    },
+    breaks: {
+      buffer: regl.buffer(line.breaks),
       divisor: 1,
       offset: 0
     },
